@@ -327,25 +327,7 @@ The roadmap for QueryWise includes several high-impact features:
 - **🧩 Schema Import** — Paste a `CREATE TABLE` dump and get fully schema-aware suggestions
 - **📤 Export** — Download optimized queries and reports as PDF or share via link
 - **👥 Team Workspaces** — Collaborate on query reviews with annotation and commenting
-
 ---
-
-## 🤖 AI Usage Log
-
-AI tools were used responsibly throughout development as a productivity multiplier — not a replacement for engineering judgment.
-
-| Area | AI Tool | Usage |
-|---|---|---|
-| **UI Generation** | Claude / v0 | Scaffolding component variants and dashboard layout ideas |
-| **Prompt Engineering** | Google AI Studio | Crafting the optimization, NL→SQL, and chat assistant prompts |
-| **Backend Scaffolding** | GitHub Copilot | API route boilerplate, Prisma schema drafting, and type generation |
-| **Debugging** | Claude | Diagnosing edge cases in query parsing and Gemini response handling |
-| **Code Improvement** | Copilot / Claude | Refactoring repeated logic and improving TypeScript generics |
-
-All AI-generated code was reviewed, tested, and adapted by the developer before merging.
-
----
-
 ## ⚡ Performance & Optimization
 
 - **Lazy Loading** — Heavy editor and visualization components are dynamically imported to reduce initial bundle size
