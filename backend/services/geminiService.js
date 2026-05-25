@@ -1,77 +1,14 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const MODEL_NAME = 'gemini-2.0-flash';
+const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-2.0-flash-lite';
+const FALLBACK_MODELS = ['gemini-2.0-flash-lite', 'gemini-flash-lite-latest', 'gemini-2.0-flash'];
 const ASSUMED_ROW_COUNT = 10000;
 
-const SYSTEM_PROMPT = `You are an expert SQL query optimizer and database execution plan analyst.
-Return only valid JSON. Do not wrap the response in markdown.
-Analyze the provided database schema and user query. The user query may be natural language or raw SQL.
-
-Required JSON shape:
-{
-  "isNaturalLanguage": true,
-  "generatedSQL": "",
-  "syntaxValidation": {
-    "isValid": true,
-    "suggestions": []
-  },
-  "optimizationIssues": [],
-  "optimizedQuery": "",
-  "indexRecommendations": [
-    {
-      "sql": "",
-      "reason": ""
-    }
-  ],
-  "executionAnalysis": {
-    "estimatedCost": 0,
-    "rowsScanned": 0,
-    "bottlenecks": ""
-  },
-  "performanceComparison": [
-    {
-      "metric": "Cost",
-      "before": 0,
-      "after": 0
-    },
-    {
-      "metric": "Rows scanned",
-      "before": 0,
-      "after": 0
-    }
-  ],
-  "queryTree": {
-    "nodes": [
-      {
-        "id": "1",
-        "label": "SELECT",
-        "position": { "x": 240, "y": 20 },
-        "active": false
-      }
-    ],
-    "edges": [
-      {
-        "id": "e1-2",
-        "source": "1",
-        "target": "2"
-      }
-    ]
-  }
-}
-
-Rules:
-- If the input is natural language, set isNaturalLanguage to true and fill generatedSQL.
-- If the input is raw SQL, set isNaturalLanguage to false and generatedSQL to an empty string.
-- Validate SQL syntax against the schema. If invalid, provide concise correction suggestions.
-- Identify only query optimization issues. Do not add unrelated product features or explanations.
-- Optimized SQL should be runnable SQL and should avoid SELECT * when columns can be inferred.
-- Index recommendations must include CREATE INDEX statements and reasons.
-- Execution and performance estimates may be reasoned estimates when an actual database engine is unavailable.
-- All row scan estimates must be normalized to an assumed table size of exactly 10,000 rows.
-- The "Rows scanned" performance metric must use before = 10000 and after as an estimated optimized scan count between 1 and 10000.
-- The "Cost" performance metric must use a normalized 0-100 scale, where before = 100 and after is proportional to optimized rows scanned.
-- Query tree nodes must represent SQL operations such as SELECT, FILTER, JOIN, GROUP BY, SORT, TABLE.
-- Use numeric values for performanceComparison before and after fields.`;
+const SYSTEM_PROMPT = `You are a SQL optimizer. Return JSON only, no markdown.
+Input is schema + either natural language or SQL.
+Use this exact shape:
+{"isNaturalLanguage":boolean,"generatedSQL":string,"syntaxValidation":{"isValid":boolean,"suggestions":string[]},"optimizationIssues":string[],"optimizedQuery":string,"indexRecommendations":[{"sql":string,"reason":string}],"executionAnalysis":{"estimatedCost":number,"rowsScanned":number,"bottlenecks":string},"performanceComparison":[{"metric":"Cost","before":number,"after":number},{"metric":"Rows scanned","before":number,"after":number}],"queryTree":{"nodes":[{"id":string,"label":string,"position":{"x":number,"y":number},"active":boolean}],"edges":[{"id":string,"source":string,"target":string}]}}
+Rules: detect NL vs SQL. If NL, generate SQL; if SQL, generatedSQL="". Validate syntax. List only optimization issues. Produce runnable optimized SQL. Recommend CREATE INDEX statements. Estimate without a live DB. Normalize rows to 10000: Rows scanned before=10000, after=1..10000. Cost before=100, after proportional to optimized rows. Query tree labels should be SQL ops like SELECT,FILTER,JOIN,GROUP BY,SORT,TABLE.`;
 
 function stripJsonFence(text = '') {
   return text
@@ -164,35 +101,57 @@ export async function analyzeQueryWithGemini({ schema, query }) {
   }
 
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({
-    model: MODEL_NAME,
-    systemInstruction: SYSTEM_PROMPT,
-    generationConfig: {
-      responseMimeType: 'application/json',
-      temperature: 0.2,
-      maxOutputTokens: 2048,
-    },
-  });
+  const compactSchema = schema.trim().slice(0, 6000);
+  const compactQuery = query.trim().slice(0, 2500);
 
-  const prompt = `Database schema:
-${schema}
+  const prompt = `Schema:
+${compactSchema}
 
-User query:
-${query}`;
+Query:
+${compactQuery}`;
 
-  let response;
+  const modelNames = [MODEL_NAME, ...FALLBACK_MODELS].filter(
+    (modelName, index, models) => modelName && models.indexOf(modelName) === index,
+  );
+  let lastError;
 
-  try {
-    response = await model.generateContent(prompt);
-  } catch (error) {
-    throw new Error(error?.message || 'Gemini request failed.');
+  for (const modelName of modelNames) {
+    const model = genAI.getGenerativeModel({
+      model: modelName,
+      systemInstruction: SYSTEM_PROMPT,
+      generationConfig: {
+        responseMimeType: 'application/json',
+        temperature: 0.1,
+        candidateCount: 1,
+        maxOutputTokens: 1600,
+      },
+    });
+
+    try {
+      const response = await model.generateContent(prompt);
+      const text = response.response.text();
+
+      if (!text.trim()) {
+        throw new Error('Empty response returned from Gemini.');
+      }
+
+      return normalizeResult(safeParseJson(text));
+    } catch (error) {
+      lastError = error;
+      const message = error?.message || '';
+      const shouldTryFallback =
+        message.includes('429') ||
+        message.toLowerCase().includes('quota') ||
+        message.includes('503') ||
+        message.toLowerCase().includes('overloaded') ||
+        message.includes('not found for API version') ||
+        message.includes('is not supported for generateContent');
+
+      if (!shouldTryFallback) {
+        throw new Error(message || 'Gemini request failed.');
+      }
+    }
   }
 
-  const text = response.response.text();
-
-  if (!text.trim()) {
-    throw new Error('Empty response returned from Gemini.');
-  }
-
-  return normalizeResult(safeParseJson(text));
+  throw new Error(lastError?.message || 'Gemini request failed.');
 }

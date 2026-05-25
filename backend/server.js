@@ -29,7 +29,11 @@ function getPublicErrorMessage(error) {
   }
 
   if (message.includes('429') || message.toLowerCase().includes('quota')) {
-    return 'Gemini quota or rate limit was reached. Try again later.';
+    return 'Gemini quota or rate limit was reached for all configured Flash models. Wait for quota reset, enable billing, or use an API key from a project with available Gemini quota.';
+  }
+
+  if (message.includes('503') || message.toLowerCase().includes('overloaded')) {
+    return 'Gemini is temporarily overloaded. Try again in a moment.';
   }
 
   if (message.includes('Invalid JSON returned from Gemini')) {
