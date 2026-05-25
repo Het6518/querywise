@@ -4,7 +4,7 @@ const api = axios.create({
   baseURL:
     import.meta.env.VITE_API_URL ||
     (import.meta.env.PROD ? 'https://query-optimizer-backend.onrender.com' : 'http://localhost:5000'),
-  timeout: 60000,
+  timeout: 180000,
 });
 
 export async function analyzeQuery(payload) {

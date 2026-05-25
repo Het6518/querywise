@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const MODEL_NAME = 'gemini-2.5-flash';
+const MODEL_NAME = 'gemini-2.0-flash';
 const ASSUMED_ROW_COUNT = 10000;
 
 const SYSTEM_PROMPT = `You are an expert SQL query optimizer and database execution plan analyst.
@@ -170,6 +170,7 @@ export async function analyzeQueryWithGemini({ schema, query }) {
     generationConfig: {
       responseMimeType: 'application/json',
       temperature: 0.2,
+      maxOutputTokens: 2048,
     },
   });
 
