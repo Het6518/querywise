@@ -180,7 +180,14 @@ ${schema}
 User query:
 ${query}`;
 
-  const response = await model.generateContent(prompt);
+  let response;
+
+  try {
+    response = await model.generateContent(prompt);
+  } catch (error) {
+    throw new Error(error?.message || 'Gemini request failed.');
+  }
+
   const text = response.response.text();
 
   if (!text.trim()) {
