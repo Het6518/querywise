@@ -277,7 +277,15 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ## 🌍 Deployment
 
-The frontend is deployed on **Vercel**. The backend (Express) can be hosted on **Railway**, **Render**, or any Node.js-compatible platform.
+The frontend is deployed from the **`frontend/` folder on Vercel**. The backend is deployed separately from the **`backend/` folder on Render**.
+
+Current deployed backend:
+
+```text
+https://query-optimizer-backend.onrender.com
+```
+
+The frontend calls this backend through `frontend/src/services/api.js`. In production, the app uses the Render URL unless `VITE_API_URL` is provided.
 
 ### Deploy Frontend to Vercel
 
@@ -295,18 +303,17 @@ Set the following in your Vercel project under **Settings → Environment Variab
 
 | Variable | Description |
 |---|---|
-| `VITE_API_URL` | URL of your deployed backend (e.g. `https://querywise-api.railway.app`) |
+| `VITE_API_URL` | `https://query-optimizer-backend.onrender.com` |
 
 ### Deploy Backend
 
-**Railway** (recommended):
-1. Connect your GitHub repo to [Railway](https://railway.app/)
-2. Set root directory to `backend/`
-3. Add `GEMINI_API_KEY` as an environment variable
-4. Railway auto-detects Node.js and deploys `server.js`
-
-**Render** (alternative):
-- Create a new Web Service, set root to `backend/`, build command `npm install`, start command `node server.js`
+**Render**:
+1. Create a new Web Service.
+2. Set root directory to `backend/`.
+3. Set build command to `npm install`.
+4. Set start command to `npm start`.
+5. Add `GEMINI_API_KEY` as an environment variable.
+6. Redeploy after changing environment variables.
 
 ---
 
